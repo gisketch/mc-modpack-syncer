@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Modpack Syncer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <img
+          src="assets/images/logo.png"
+          alt="Modpack Syncer Logo"
+          class="logo"
+        />
+        <div class="title">
+          <h1>Modpack Syncer</h1>
+          <p>See tutorial on discord or contact @gisketch</p>
+        </div>
+      </div>
+
+      <div class="status-container">
+        <h2>Status</h2>
+        <p id="status-message">Please select your Minecraft instance folder</p>
+        <p id="folder-path" class="path-display"></p>
+        <p id="mods-path" class="path-display"></p>
+      </div>
+
+      <div class="options-container">
+        <div class="option-row">
+          <label class="checkbox-container">
+            <input type="checkbox" id="sync-options" checked />
+            <span class="checkmark"></span>
+            Sync Options
+          </label>
+        </div>
+
+        <div class="option-row profile-selector" id="profile-selector">
+          <div class="profile-option">
+            <input
+              type="radio"
+              id="profile-default"
+              name="profile"
+              value="default"
+              checked
+            />
+            <label for="profile-default" class="tooltip-container">
+              Default
+              <span class="tooltip">Full quality settings for good PCs</span>
+            </label>
+          </div>
+          <div class="profile-option">
+            <input
+              type="radio"
+              id="profile-potato"
+              name="profile"
+              value="potato"
+            />
+            <label for="profile-potato" class="tooltip-container">
+              Potato
+              <span class="tooltip">Low quality settings for potatoes PCs</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="option-row">
+          <label class="checkbox-container">
+            <input type="checkbox" id="sync-keybinds" checked />
+            <span class="checkmark"></span>
+            Sync Keybinds
+          </label>
+        </div>
+
+        <div class="option-row">
+          <label class="checkbox-container">
+            <input type="checkbox" id="turn-on-shaders" checked />
+            <span class="checkmark"></span>
+            Turn On Shaders
+          </label>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="browse-btn">Browse Folder</button>
+        <button id="sync-btn" disabled>Sync Mods</button>
+      </div>
+
+      <div class="progress-container" style="display: block">
+        <div class="progress-label">
+          Progress: <span id="progress-status">Preparing...</span>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+      </div>
+
+      <div class="sync-info" id="sync-log-container" style="display: none">
+        <h3>Sync Log</h3>
+        <div id="sync-log" class="sync-log"></div>
+      </div>
+
+      <div class="info">
+        <p>Developed by @gisketch</p>
+        <ul>
+          <li>Mod Repo: https://github.com/gisketch/ckdm-mods.git</li>
+        </ul>
+      </div>
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
