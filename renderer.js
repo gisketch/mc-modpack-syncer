@@ -7,16 +7,15 @@ const axios = require('axios');
 
 // Constants
 
-// const REPO_URL = 'https://github.com/gisketch/ckdm-mods.git';
-// const LARGE_MOD_URL = 'https://cdn.modrinth.com/data/MdwFAVRL/versions/eLcb8xod/Cobblemon-neoforge-1.6.1%2B1.21.1.jar';
 const LARGE_MOD_FILENAME = 'Cobblemon-neoforge-1.6.1+1.21.1.jar';
 
 // Constants
 const REPO_URL = 'https://github.com/gisketch/ckdm-mods.git';
-// Pastebin URLs for mod links and potato mode disabled mods
-const LARGE_MODS_PASTEBIN_URL = 'https://pastebin.com/raw/0BZqtTNN';
-const POTATO_DISABLED_MODS_PASTEBIN_URL = 'https://pastebin.com/raw/ahiJPFqU';
-
+// Local file paths for mod links and potato mode disabled mods
+const LARGE_MODS_FILE_PATH = 'syncerData/large_mods.txt';
+const POTATO_DISABLED_MODS_FILE_PATH = 'syncerData/potato_disabled.txt';
+const SHADER_SETTINGS_FILE_PATH = 'syncerData/shader_settings.txt';
+const OTHER_MODS_PASTEBIN_URL = 'https://pastebin.com/raw/79Ye5xpB'; // Replace with actual pastebin ID
 
 // Tracked folders and files
 const TRACKED_PATHS = [
@@ -25,6 +24,9 @@ const TRACKED_PATHS = [
     'shaderpacks',
     'mods',
     'potato',
+    'syncerData',
+    'kubejs',
+    'keybind_bundles.json',
     'options.txt'
 ];
 
@@ -33,12 +35,14 @@ const browseBtn = document.getElementById('browse-btn');
 const syncBtn = document.getElementById('sync-btn');
 const statusMessage = document.getElementById('status-message');
 const folderPathDisplay = document.getElementById('folder-path');
-const syncOptionsCheckbox = document.getElementById('sync-options');
+const syncConfigsCheckbox = document.getElementById('sync-configs');
 const syncKeybindsCheckbox = document.getElementById('sync-keybinds');
-const turnOnShadersCheckbox = document.getElementById('turn-on-shaders');
-const profileSelector = document.getElementById('profile-selector');
-const defaultProfileRadio = document.getElementById('profile-default');
-const potatoProfileRadio = document.getElementById('profile-potato');
+const disableClientModsCheckbox = document.getElementById('disable-client-mods');
+const shaderOffRadio = document.getElementById('shader-off');
+const shaderPotatoRadio = document.getElementById('shader-potato');
+const shaderDefaultRadio = document.getElementById('shader-default');
+const shaderDontSyncRadio = document.getElementById('shader-dont-sync');
+const otherModsContainer = document.getElementById('other-mods-container');
 const progressContainer = document.getElementById('progress-container');
 const progressBar = document.getElementById('progress-bar');
 const progressStatus = document.getElementById('progress-status');
@@ -49,19 +53,24 @@ const syncLog = document.getElementById('sync-log');
 let selectedInstancePath = null;
 // Store keybinds backup
 let keybindsBackup = {};
+// Store iris.properties backup
+let irisPropertiesBackup = null;
+// Store other mods data
+let otherModsData = {};
 
-// Enable/disable profile selector based on sync options checkbox
-if (syncOptionsCheckbox && profileSelector) {
-    syncOptionsCheckbox.addEventListener('change', () => {
-        const isChecked = syncOptionsCheckbox.checked;
-        if (defaultProfileRadio) defaultProfileRadio.disabled = !isChecked;
-        if (potatoProfileRadio) potatoProfileRadio.disabled = !isChecked;
+// // Enable/disable profile selector based on sync options checkbox
+// if (syncOptionsCheckbox && profileSelector) {
+//     syncOptionsCheckbox.addEventListener('change', () => {
+//         const isChecked = syncOptionsCheckbox.checked;
+//         if (defaultProfileRadio) defaultProfileRadio.disabled = !isChecked;
+//         if (potatoProfileRadio) potatoProfileRadio.disabled = !isChecked;
 
-        // Visual feedback
-        if (profileSelector) profileSelector.style.opacity = isChecked ? '1' : '0.5';
-    });
-}
+//         // Visual feedback
+//         if (profileSelector) profileSelector.style.opacity = isChecked ? '1' : '0.5';
+//     });
+// }
 
+// Add event listeners
 // Add event listeners
 if (browseBtn) {
     browseBtn.addEventListener('click', async () => {
@@ -74,12 +83,105 @@ if (browseBtn) {
             if (folderData.isValidInstance) {
                 if (statusMessage) statusMessage.textContent = 'Minecraft instance folder detected! Ready to sync.';
                 if (syncBtn) syncBtn.disabled = false;
+
+                // Load other mods data
+                await loadOtherModsData();
             } else {
                 if (statusMessage) statusMessage.textContent = 'Selected folder does not appear to be a valid Minecraft instance.';
                 if (syncBtn) syncBtn.disabled = true;
             }
         }
     });
+}
+
+
+// Load other mods data from pastebin
+async function loadOtherModsData() {
+    try {
+        // First try to load from the repository if it exists
+        const otherModsFilePath = path.join(selectedInstancePath, 'syncerData', 'other_mods.txt');
+
+        if (await fs.pathExists(otherModsFilePath)) {
+            const content = await fs.readFile(otherModsFilePath, 'utf8');
+            parseOtherModsData(content);
+        } else {
+            // If not found locally, try to fetch from pastebin
+            const response = await axios.get(OTHER_MODS_PASTEBIN_URL);
+            if (response.status === 200) {
+                parseOtherModsData(response.data);
+            }
+        }
+    } catch (error) {
+        logMessage(`Error loading other mods data: ${error.message}`, 'error');
+    }
+}
+
+
+// Parse other mods data and create UI elements
+function parseOtherModsData(content) {
+    otherModsData = {};
+    otherModsContainer.innerHTML = '';
+
+    const lines = content.split('\n');
+    for (const line of lines) {
+        if (line.trim() && line.includes('=')) {
+            const [displayName, modPattern] = line.split('=').map(part => part.trim());
+            otherModsData[displayName] = modPattern;
+
+            // Create checkbox for this mod
+            const checkboxId = `mod-${displayName.replace(/\s+/g, '-').toLowerCase()}`;
+
+            const checkboxContainer = document.createElement('div');
+            checkboxContainer.className = 'option-row';
+
+            const label = document.createElement('label');
+            label.className = 'checkbox-container';
+            label.textContent = `Enable ${displayName}`;
+
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = checkboxId;
+            input.dataset.modName = displayName;
+
+            const span = document.createElement('span');
+            span.className = 'checkmark';
+
+            label.prepend(input);
+            label.appendChild(span);
+            checkboxContainer.appendChild(label);
+            otherModsContainer.appendChild(checkboxContainer);
+
+            // Check if mod is currently enabled
+            checkModStatus(displayName, modPattern, input);
+        }
+    }
+}
+
+
+// Check if a mod is currently enabled or disabled
+async function checkModStatus(displayName, modPattern, checkbox) {
+    try {
+        if (!selectedInstancePath) return;
+
+        const modsDir = path.join(selectedInstancePath, 'mods');
+        if (!await fs.pathExists(modsDir)) return;
+
+        const files = await fs.readdir(modsDir);
+
+        // Create a regex pattern from the wildcard pattern
+        const regexPattern = new RegExp('^' + modPattern.replace(/\*/g, '.*') + '\\.(jar|disabled)$');
+
+        // Find matching files
+        const matchingFiles = files.filter(file => regexPattern.test(file));
+
+        if (matchingFiles.length > 0) {
+            // Check if any matching file is enabled (ends with .jar)
+            const isEnabled = matchingFiles.some(file => file.endsWith('.jar'));
+            checkbox.checked = isEnabled;
+        }
+    } catch (error) {
+        logMessage(`Error checking mod status: ${error.message}`, 'error');
+    }
 }
 
 
@@ -97,18 +199,36 @@ if (syncBtn) {
             if (syncLog) syncLog.innerHTML = '';
 
             // Get options
-            const syncOptions = syncOptionsCheckbox ? syncOptionsCheckbox.checked : false;
+            const syncConfigs = syncConfigsCheckbox ? syncConfigsCheckbox.checked : false;
             const syncKeybinds = syncKeybindsCheckbox ? syncKeybindsCheckbox.checked : false;
-            const turnOnShaders = turnOnShadersCheckbox ? turnOnShadersCheckbox.checked : false;
-            const usePotatoProfile = potatoProfileRadio && potatoProfileRadio.checked && syncOptions;
+            const disableClientMods = disableClientModsCheckbox ? disableClientModsCheckbox.checked : false;
+
+            // Get shader settings
+            let shaderSetting = 'default';
+            if (shaderOffRadio && shaderOffRadio.checked) shaderSetting = 'off';
+            else if (shaderPotatoRadio && shaderPotatoRadio.checked) shaderSetting = 'potato';
+            else if (shaderDefaultRadio && shaderDefaultRadio.checked) shaderSetting = 'default';
+            else if (shaderDontSyncRadio && shaderDontSyncRadio.checked) shaderSetting = 'dont-sync';
+
+            // Get other mods settings
+            const otherModsSettings = {};
+            const otherModsCheckboxes = document.querySelectorAll('#other-mods-container input[type="checkbox"]');
+            otherModsCheckboxes.forEach(checkbox => {
+                otherModsSettings[checkbox.dataset.modName] = checkbox.checked;
+            });
 
             // Backup keybinds before any operations if we're not syncing them
             if (!syncKeybinds) {
                 await backupKeybinds();
             }
 
+            // Backup iris.properties if we're using "Don't Sync" option
+            if (shaderSetting === 'dont-sync') {
+                await backupIrisProperties();
+            }
+
             // Start sync process
-            await syncModpack(syncOptions, syncKeybinds, turnOnShaders, usePotatoProfile);
+            await syncModpack(syncConfigs, syncKeybinds, shaderSetting, disableClientMods, otherModsSettings);
 
             // Update UI after completion
             if (statusMessage) statusMessage.textContent = 'Modpack successfully synced!';
@@ -126,7 +246,36 @@ if (syncBtn) {
     });
 }
 
-async function syncModpack(syncOptions, syncKeybinds, turnOnShaders, usePotatoProfile) {
+
+// Backup iris.properties file
+async function backupIrisProperties() {
+    try {
+        const irisPropertiesPath = path.join(selectedInstancePath, 'config', 'iris.properties');
+        if (await fs.pathExists(irisPropertiesPath)) {
+            irisPropertiesBackup = await fs.readFile(irisPropertiesPath, 'utf8');
+            logMessage('Iris properties backed up.');
+        }
+    } catch (error) {
+        logMessage(`Error backing up iris.properties: ${error.message}`, 'error');
+    }
+}
+
+// Restore iris.properties file
+async function restoreIrisProperties() {
+    try {
+        if (irisPropertiesBackup) {
+            const irisPropertiesPath = path.join(selectedInstancePath, 'config', 'iris.properties');
+            await fs.ensureDir(path.dirname(irisPropertiesPath));
+            await fs.writeFile(irisPropertiesPath, irisPropertiesBackup);
+            logMessage('Iris properties restored.');
+        }
+    } catch (error) {
+        logMessage(`Error restoring iris.properties: ${error.message}`, 'error');
+    }
+}
+
+
+async function syncModpack(syncConfigs, syncKeybinds, shaderSetting, disableClientMods, otherModsSettings) {
     try {
         // Step 1: Setup git repository
         setProgress(10, 'Setting up repository...');
@@ -134,11 +283,6 @@ async function syncModpack(syncOptions, syncKeybinds, turnOnShaders, usePotatoPr
 
         // Step 2: Get paths before sync for comparison
         const beforeFiles = await getAllModFiles();
-
-        // Backup keybinds before any operations if we're not syncing them
-        if (!syncKeybinds) {
-            await backupKeybinds();
-        }
 
         // Step 3: Sync all tracked folders and files
         setProgress(30, 'Syncing from repository...');
@@ -156,41 +300,214 @@ async function syncModpack(syncOptions, syncKeybinds, turnOnShaders, usePotatoPr
         // Step 6: Get paths after sync for comparison
         const afterFiles = await getAllModFiles();
 
-        // Step 7: Handle options and settings
+        // Step 7: Handle configs if needed
         setProgress(80, 'Applying settings...');
-        if (syncOptions) {
-            await applySettingsProfile(usePotatoProfile, syncKeybinds);
+        if (syncConfigs) {
+            // Apply config settings (old potato profile functionality)
+            await applyConfigSettings(syncKeybinds);
 
-            // Restore keybinds again after profile application if needed
+            // Restore keybinds again after config application if needed
             if (!syncKeybinds) {
                 await restoreKeybinds();
             }
         }
 
-        // Step 8: Handle shader settings if needed
-        if (!turnOnShaders && !usePotatoProfile) {
-            await turnOffShaders();
-        }
+        // Step 8: Handle shader settings
+        await applyShaderSettings(shaderSetting);
 
-        // Step 9: If in potato mode, disable specified mods
-        if (usePotatoProfile) {
+        // Step 9: If disableClientMods is enabled, disable specified mods
+        if (disableClientMods) {
             await disablePotatoMods();
         }
 
-        // Step 10: Calculate changes for reporting
-        const { added, removed, changed } = compareFiles(beforeFiles, afterFiles);
+        // Step 10: Handle other mods settings
+        await handleOtherMods(otherModsSettings);
+
+        // Step 11: Calculate changes for reporting
+        const { added, removed, updated } = compareFiles(beforeFiles, afterFiles);
 
         // Report changes
         logMessage('Sync completed successfully!');
-        logMessage(`Added: ${added.length} files`);
-        added.forEach(file => logMessage(`  + ${file}`, 'added'));
 
-        logMessage(`Removed: ${removed.length} files`);
-        removed.forEach(file => logMessage(`  - ${file}`, 'removed'));
+        if (added.length > 0) {
+            logMessage(`Added: ${added.length} files`);
+            added.forEach(file => logMessage(`  + ${file}`, 'added'));
+        }
+
+        if (updated.length > 0) {
+            logMessage(`Updated: ${updated.length} files`);
+            updated.forEach(update => logMessage(`  ~ ${update.from} → ${update.to}`, 'updated'));
+        }
+
+        if (removed.length > 0) {
+            logMessage(`Removed: ${removed.length} files`);
+            removed.forEach(file => logMessage(`  - ${file}`, 'removed'));
+        }
 
         setProgress(100, 'Sync completed!');
     } catch (error) {
         logMessage(`Error during sync: ${error.message}`, 'error');
+        throw error;
+    }
+}
+
+
+// Apply config settings (replaces the old applySettingsProfile function)
+async function applyConfigSettings(syncKeybinds) {
+    try {
+        logMessage('Applying config settings...');
+
+        // If not syncing keybinds, restore them
+        if (!syncKeybinds) {
+            await preserveKeybinds();
+        }
+
+        logMessage('Config settings applied.');
+    } catch (error) {
+        logMessage(`Error applying config settings: ${error.message}`, 'error');
+        throw error;
+    }
+}
+
+// Apply shader settings based on selection
+async function applyShaderSettings(shaderSetting) {
+    try {
+        logMessage(`Applying shader settings: ${shaderSetting}...`);
+
+        // If "Don't Sync" is selected, restore the backed up iris.properties
+        if (shaderSetting === 'dont-sync') {
+            await restoreIrisProperties();
+            return;
+        }
+
+        // Get shader settings from file
+        const shaderSettingsPath = path.join(selectedInstancePath, SHADER_SETTINGS_FILE_PATH);
+        let potatoName = '';
+        let defaultName = '';
+
+        if (await fs.pathExists(shaderSettingsPath)) {
+            const content = await fs.readFile(shaderSettingsPath, 'utf8');
+            const lines = content.split('\n');
+
+            for (const line of lines) {
+                if (line.startsWith('potato_name=')) {
+                    potatoName = line.substring('potato_name='.length).trim();
+                } else if (line.startsWith('default_name=')) {
+                    defaultName = line.substring('default_name='.length).trim();
+                }
+            }
+        }
+
+        // Path to iris.properties
+        const irisPropertiesPath = path.join(selectedInstancePath, 'config', 'iris.properties');
+
+        // Ensure config directory exists
+        await fs.ensureDir(path.dirname(irisPropertiesPath));
+
+        // If iris.properties doesn't exist, create a default one
+        if (!await fs.pathExists(irisPropertiesPath)) {
+            const defaultContent =
+                `#This file stores configuration options for Iris, such as the currently active shaderpack
+#${new Date().toString()}
+allowUnknownShaders=false
+colorSpace=SRGB
+disableUpdateMessage=false
+enableDebugOptions=false
+enableShaders=true
+maxShadowRenderDistance=8
+shaderPack=${defaultName}`;
+            await fs.writeFile(irisPropertiesPath, defaultContent);
+        }
+
+        // Read current iris.properties
+        const content = await fs.readFile(irisPropertiesPath, 'utf8');
+        const lines = content.split('\n');
+        const newLines = [];
+
+        // Process each line
+        for (const line of lines) {
+            if (line.startsWith('enableShaders=')) {
+                // If shader setting is "off", set enableShaders to false
+                if (shaderSetting === 'off') {
+                    newLines.push('enableShaders=false');
+                } else {
+                    newLines.push('enableShaders=true');
+                }
+            } else if (line.startsWith('shaderPack=')) {
+                // Set shader pack based on setting
+                if (shaderSetting === 'potato' && potatoName) {
+                    newLines.push(`shaderPack=${potatoName}`);
+                } else if (shaderSetting === 'default' && defaultName) {
+                    newLines.push(`shaderPack=${defaultName}`);
+                } else if (shaderSetting === 'off') {
+                    // When turning off shaders, keep the current pack but disable it
+                    newLines.push(line);
+                } else {
+                    // Default fallback
+                    newLines.push(line);
+                }
+            } else {
+                newLines.push(line);
+            }
+        }
+
+        // Write updated iris.properties
+        await fs.writeFile(irisPropertiesPath, newLines.join('\n'));
+        logMessage(`Shader settings applied: ${shaderSetting}`);
+    } catch (error) {
+        logMessage(`Error applying shader settings: ${error.message}`, 'error');
+        throw error;
+    }
+}
+
+// Handle other mods (enable/disable based on settings)
+async function handleOtherMods(otherModsSettings) {
+    try {
+        logMessage('Handling other mods settings...');
+
+        const modsDir = path.join(selectedInstancePath, 'mods');
+        if (!await fs.pathExists(modsDir)) {
+            logMessage('Mods directory not found, skipping other mods handling.', 'warning');
+            return;
+        }
+
+        const files = await fs.readdir(modsDir);
+
+        // Process each mod in otherModsSettings
+        for (const [displayName, enabled] of Object.entries(otherModsSettings)) {
+            const modPattern = otherModsData[displayName];
+            if (!modPattern) continue;
+
+            // Create a regex pattern from the wildcard pattern
+            const regexPattern = new RegExp('^' + modPattern.replace(/\*/g, '.*') + '\\.(jar|disabled)$');
+
+            // Find matching files
+            const matchingFiles = files.filter(file => regexPattern.test(file));
+
+            for (const file of matchingFiles) {
+                const filePath = path.join(modsDir, file);
+
+                if (enabled) {
+                    // Enable the mod (ensure it ends with .jar)
+                    if (file.endsWith('.disabled')) {
+                        const newPath = filePath.replace(/\.disabled$/, '.jar');
+                        await fs.rename(filePath, newPath);
+                        logMessage(`Enabled mod: ${file} → ${path.basename(newPath)}`, 'added');
+                    }
+                } else {
+                    // Disable the mod (ensure it ends with .jar.disabled)
+                    if (file.endsWith('.jar')) {
+                        const newPath = `${filePath}.disabled`;
+                        await fs.rename(filePath, newPath);
+                        logMessage(`Disabled mod: ${file} → ${path.basename(newPath)}`, 'removed');
+                    }
+                }
+            }
+        }
+
+        logMessage('Other mods settings applied.');
+    } catch (error) {
+        logMessage(`Error handling other mods: ${error.message}`, 'error');
         throw error;
     }
 }
@@ -256,7 +573,6 @@ async function setupGitRepository() {
 }
 
 
-// Update createGitIgnore to use axios
 async function createGitIgnore() {
     const gitignorePath = path.join(selectedInstancePath, '.gitignore');
 
@@ -279,11 +595,12 @@ async function createGitIgnore() {
     content += '\n# Ignore large mod files\n';
 
     try {
-        // Fetch the list of large mod URLs from pastebin to dynamically create ignores
-        const response = await axios.get(LARGE_MODS_PASTEBIN_URL);
+        // Read the list of large mod URLs from local file
+        const largeModsFilePath = path.join(selectedInstancePath, LARGE_MODS_FILE_PATH);
 
-        if (response.status === 200) {
-            const modLinks = response.data.split('\n').filter(line => line.trim());
+        if (await fs.pathExists(largeModsFilePath)) {
+            const modLinksContent = await fs.readFile(largeModsFilePath, 'utf8');
+            const modLinks = modLinksContent.split('\n').filter(line => line.trim());
 
             for (const modUrl of modLinks) {
                 if (modUrl.trim()) {
@@ -294,13 +611,13 @@ async function createGitIgnore() {
                 }
             }
         } else {
-            // Fallback to the hardcoded filename if fetch fails
+            // Fallback to the hardcoded filename if file doesn't exist
             content += `mods/${LARGE_MOD_FILENAME}\n`;
         }
     } catch (error) {
-        // Fallback to the hardcoded filename if fetch fails
+        // Fallback to the hardcoded filename if reading fails
         content += `mods/${LARGE_MOD_FILENAME}\n`;
-        logMessage(`Warning: Could not fetch mod list for gitignore: ${error.message}`, 'warning');
+        logMessage(`Warning: Could not read mod list for gitignore: ${error.message}`, 'warning');
     }
 
     // Write the gitignore file
@@ -460,17 +777,17 @@ async function resetToLatestCommit() {
 }
 
 
-// Backup keybinds from options.txt
 async function backupKeybinds() {
     try {
         logMessage('Backing up keybinds...');
         const optionsPath = path.join(selectedInstancePath, 'options.txt');
-        keybindsBackup = {};
 
         if (await fs.pathExists(optionsPath)) {
             const content = await fs.readFile(optionsPath, 'utf8');
             const lines = content.split('\n');
 
+            // Extract keybinds
+            keybindsBackup = {};
             for (const line of lines) {
                 if (line.startsWith('key_')) {
                     const separatorIndex = line.indexOf(':');
@@ -481,15 +798,19 @@ async function backupKeybinds() {
                     }
                 }
             }
-            logMessage(`Backed up ${Object.keys(keybindsBackup).length} keybinds.`);
+            logMessage('Keybinds backed up.');
         } else {
-            logMessage('options.txt not found, no keybinds to backup.', 'warning');
+            logMessage('options.txt not found, cannot backup keybinds.', 'warning');
         }
+
+        // Also backup iris.properties
+        await backupIrisProperties();
     } catch (error) {
         logMessage(`Error backing up keybinds: ${error.message}`, 'error');
         throw error;
     }
 }
+
 
 async function restoreKeybinds() {
     try {
@@ -545,20 +866,21 @@ async function downloadLargeMods() {
         // Ensure mods directory exists
         await fs.ensureDir(modsDir);
 
-        logMessage('Fetching large mod links from pastebin...');
+        logMessage('Reading large mod links from local file...');
 
-        // Fetch the list of large mod URLs from pastebin using axios
-        const response = await axios.get(LARGE_MODS_PASTEBIN_URL);
+        // Read the list of large mod URLs from local file
+        const largeModsFilePath = path.join(selectedInstancePath, LARGE_MODS_FILE_PATH);
 
-        if (response.status !== 200) {
-            throw new Error(`Failed to fetch large mod links: ${response.statusText}`);
+        if (!await fs.pathExists(largeModsFilePath)) {
+            logMessage('Large mods file not found. Make sure syncerData/large_mods.txt exists in the repository.', 'warning');
+            return;
         }
 
-        const content = response.data;
+        const content = await fs.readFile(largeModsFilePath, 'utf8');
         const modLinks = content.split('\n').filter(line => line.trim());
 
         if (modLinks.length === 0) {
-            logMessage('No large mod links found in pastebin.', 'warning');
+            logMessage('No large mod links found in file.', 'warning');
             return;
         }
 
@@ -610,16 +932,17 @@ async function downloadLargeMods() {
 
 async function disablePotatoMods() {
     try {
-        logMessage('Fetching potato mode disabled mods list...');
+        logMessage('Reading potato mode disabled mods list...');
 
-        // Fetch the list of mods to disable from pastebin
-        const response = await fetch(POTATO_DISABLED_MODS_PASTEBIN_URL);
+        // Read the list of mods to disable from local file
+        const potatoDisabledModsPath = path.join(selectedInstancePath, POTATO_DISABLED_MODS_FILE_PATH);
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch potato disabled mods list: ${response.statusText}`);
+        if (!await fs.pathExists(potatoDisabledModsPath)) {
+            logMessage('Potato disabled mods file not found. Make sure syncerData/potato_disabled.txt exists in the repository.', 'warning');
+            return;
         }
 
-        const content = await response.text();
+        const content = await fs.readFile(potatoDisabledModsPath, 'utf8');
         const modsToDisable = content.split('\n').filter(line => line.trim());
 
         if (modsToDisable.length === 0) {
@@ -659,7 +982,7 @@ async function disablePotatoMods() {
                     try {
                         // Rename the file to .jar.disabled
                         await fs.rename(modPath, disabledPath);
-                        logMessage(`Disabled mod: ${modFile}`);
+                        logMessage(`Disabled mod: ${modFile}`, 'removed');
                         disabledCount++;
                     } catch (renameError) {
                         logMessage(`Failed to disable mod ${modFile}: ${renameError.message}`, 'error');
@@ -927,45 +1250,106 @@ async function scanDirectory(dirPath, relativePath, result) {
     }
 }
 
-// Compare before and after file lists to determine changes
+// Compare files before and after sync to report changes
 function compareFiles(beforeFiles, afterFiles) {
-    const added = afterFiles.filter(file => !beforeFiles.includes(file));
-    const removed = beforeFiles.filter(file => !afterFiles.includes(file));
+    // Extract filenames without paths for easier comparison
+    const getFilename = (path) => path.split(/[\/\\]/).pop();
 
-    // For changed files, we'd need to hash or compare timestamps
-    // Using a simplified approach for now - files with same name but different sizes
-    const changed = [];
+    // Get base name before version numbers for comparison
+    const getBaseName = (filename) => {
+        // Match everything before the first number in the filename
+        const match = filename.match(/^(.*?)[\d]/);
+        return match ? match[1] : filename;
+    };
 
-    return { added, removed, changed };
+    // Filter to only include mods and resourcepacks
+    const filterRelevantPaths = (paths) => {
+        return paths.filter(path =>
+            path.startsWith('mods\\') ||
+            path.startsWith('mods/') ||
+            path.startsWith('resourcepacks\\') ||
+            path.startsWith('resourcepacks/')
+        );
+    };
+
+    // Filter to relevant paths only
+    const relevantBefore = filterRelevantPaths(beforeFiles);
+    const relevantAfter = filterRelevantPaths(afterFiles);
+
+    // Simple added/removed detection
+    let added = relevantAfter.filter(file => !relevantBefore.includes(file));
+    let removed = relevantBefore.filter(file => !relevantAfter.includes(file));
+
+    // Check for updates (same base name but different filename)
+    const updated = [];
+
+    // Create maps of base names to full paths
+    const beforeMap = new Map();
+    const afterMap = new Map();
+
+    relevantBefore.forEach(file => {
+        const filename = getFilename(file);
+        const baseName = getBaseName(filename);
+        if (!beforeMap.has(baseName)) {
+            beforeMap.set(baseName, []);
+        }
+        beforeMap.get(baseName).push(file);
+    });
+
+    relevantAfter.forEach(file => {
+        const filename = getFilename(file);
+        const baseName = getBaseName(filename);
+        if (!afterMap.has(baseName)) {
+            afterMap.set(baseName, []);
+        }
+        afterMap.get(baseName).push(file);
+    });
+
+    // Find updates by comparing base names
+    for (const [baseName, beforeFiles] of beforeMap.entries()) {
+        if (afterMap.has(baseName)) {
+            const afterFiles = afterMap.get(baseName);
+
+            // If the exact files don't match but the base name does, it's an update
+            if (JSON.stringify(beforeFiles.sort()) !== JSON.stringify(afterFiles.sort())) {
+                beforeFiles.forEach(beforeFile => {
+                    // Only mark as updated if it's not in the after files
+                    if (!relevantAfter.includes(beforeFile)) {
+                        // Find the corresponding after file
+                        const afterFile = afterFiles.find(af => !relevantBefore.includes(af));
+                        if (afterFile) {
+                            updated.push({
+                                from: beforeFile,
+                                to: afterFile
+                            });
+
+                            // Remove from added/removed lists
+                            removed = removed.filter(file => file !== beforeFile);
+                            added = added.filter(file => file !== afterFile);
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    return { added, removed, updated };
 }
 
-// Compare files before and after sync
-function compareFiles(beforeFiles, afterFiles) {
-    const beforeSet = new Set(beforeFiles);
-    const afterSet = new Set(afterFiles);
 
-    const added = afterFiles.filter(file => !beforeSet.has(file));
-    const removed = beforeFiles.filter(file => !afterSet.has(file));
-
-    // For changed files, we can only detect if they exist in both sets
-    // We can't actually detect content changes without more complex comparison
-    const commonFiles = afterFiles.filter(file => beforeSet.has(file));
-    const changed = []; // In a real implementation, you'd compare file contents here
-
-    return { added, removed, changed };
-}
-
-// Log message to the UI
+// Helper function to log messages with timestamps and optional styling
 function logMessage(message, type = 'info') {
     const timestamp = new Date().toLocaleTimeString();
+    const logElement = document.createElement('div');
+    logElement.className = `log-entry ${type}`;
+    logElement.innerHTML = `[${timestamp}] ${message}`;
+
     if (syncLog) {
-        const logEntry = document.createElement('div');
-        logEntry.className = `log-entry log-${type}`;
-        logEntry.textContent = `[${timestamp}] ${message}`;
-        syncLog.appendChild(logEntry);
+        syncLog.appendChild(logElement);
         syncLog.scrollTop = syncLog.scrollHeight;
     }
-    console.log(`[${type.toUpperCase()}] ${message}`);
+
+    console.log(`[${timestamp}] ${message}`);
 }
 
 // Fix the progress bar function to ensure visibility

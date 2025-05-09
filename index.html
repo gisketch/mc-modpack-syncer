@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Modpack Syncer</title>
+    <title>Chowkingdom Modpack Syncer v1.3</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -14,7 +14,7 @@
           class="logo"
         />
         <div class="title">
-          <h1>Modpack Syncer</h1>
+          <h1>Modpack Syncer v1.3</h1>
           <p>See tutorial on discord or contact @gisketch</p>
         </div>
       </div>
@@ -29,38 +29,10 @@
       <div class="options-container">
         <div class="option-row">
           <label class="checkbox-container">
-            <input type="checkbox" id="sync-options" checked />
+            <input type="checkbox" id="sync-configs" checked />
             <span class="checkmark"></span>
-            Sync Options
+            Sync Configs
           </label>
-        </div>
-
-        <div class="option-row profile-selector" id="profile-selector">
-          <div class="profile-option">
-            <input
-              type="radio"
-              id="profile-default"
-              name="profile"
-              value="default"
-              checked
-            />
-            <label for="profile-default" class="tooltip-container">
-              Default
-              <span class="tooltip">Full quality settings for good PCs</span>
-            </label>
-          </div>
-          <div class="profile-option">
-            <input
-              type="radio"
-              id="profile-potato"
-              name="profile"
-              value="potato"
-            />
-            <label for="profile-potato" class="tooltip-container">
-              Potato
-              <span class="tooltip">Low quality settings for potatoes PCs</span>
-            </label>
-          </div>
         </div>
 
         <div class="option-row">
@@ -72,11 +44,73 @@
         </div>
 
         <div class="option-row">
+          <label>Shader Settings:</label>
+          <div class="profile-selector" id="shader-settings">
+            <div class="profile-option">
+              <input
+                type="radio"
+                id="shader-off"
+                name="shader-settings"
+                value="off"
+              />
+              <label for="shader-off" class="tooltip-container">
+                Off
+                <span class="tooltip">Disable shaders completely</span>
+              </label>
+            </div>
+            <div class="profile-option">
+              <input
+                type="radio"
+                id="shader-potato"
+                name="shader-settings"
+                value="potato"
+              />
+              <label for="shader-potato" class="tooltip-container">
+                Potato
+                <span class="tooltip">Low quality shader settings</span>
+              </label>
+            </div>
+            <div class="profile-option">
+              <input
+                type="radio"
+                id="shader-default"
+                name="shader-settings"
+                value="default"
+                checked
+              />
+              <label for="shader-default" class="tooltip-container">
+                Default
+                <span class="tooltip">Full quality shader settings</span>
+              </label>
+            </div>
+            <div class="profile-option">
+              <input
+                type="radio"
+                id="shader-dont-sync"
+                name="shader-settings"
+                value="dont-sync"
+              />
+              <label for="shader-dont-sync" class="tooltip-container">
+                Don't Sync
+                <span class="tooltip">Keep your current shader settings</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="option-row">
           <label class="checkbox-container">
-            <input type="checkbox" id="turn-on-shaders" checked />
+            <input type="checkbox" id="disable-client-mods" />
             <span class="checkmark"></span>
-            Turn On Shaders
+            Disable Selected Client-Side Mods
           </label>
+        </div>
+
+        <div class="option-category">
+          <h3>Others</h3>
+          <div id="other-mods-container">
+            <!-- Dynamic content will be added here -->
+          </div>
         </div>
       </div>
 
@@ -99,7 +133,7 @@
         <div id="sync-log" class="sync-log"></div>
       </div>
 
-      <div class="info">
+      <div class="information">
         <p>Developed by @gisketch</p>
         <ul>
           <li>Mod Repo: https://github.com/gisketch/ckdm-mods.git</li>

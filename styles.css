@@ -112,7 +112,7 @@ button:disabled {
   border-radius: 3px;
 }
 
-.info {
+.information {
   font-size: 12px;
   color: white;
   margin-top: 40px;
@@ -254,4 +254,47 @@ button:disabled {
   transition: width 0.3s ease;
   display: block; /* Ensure it's always visible */
   min-width: 5px; /* Give it a minimum width so it's always visible */
+}
+
+
+/* Sync log styling */
+.sync-log {
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #1e1e1e;
+    color: #f0f0f0;
+    padding: 10px;
+    border-radius: 5px;
+    font-family: monospace;
+    margin-top: 10px;
+}
+
+.log-entry {
+    margin-bottom: 5px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.log-entry.info {
+    color: #f0f0f0;
+}
+
+.log-entry.error {
+    color: #ff6b6b;
+}
+
+.log-entry.warning {
+    color: #ffd166;
+}
+
+.log-entry.added {
+    color: #06d6a0;
+}
+
+.log-entry.removed {
+    color: #ef476f;
+}
+
+.log-entry.updated {
+    color: #ffd166;
 }
