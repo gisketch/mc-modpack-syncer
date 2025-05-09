@@ -58,20 +58,194 @@ let irisPropertiesBackup = null;
 // Store other mods data
 let otherModsData = {};
 
-// // Enable/disable profile selector based on sync options checkbox
-// if (syncOptionsCheckbox && profileSelector) {
-//     syncOptionsCheckbox.addEventListener('change', () => {
-//         const isChecked = syncOptionsCheckbox.checked;
-//         if (defaultProfileRadio) defaultProfileRadio.disabled = !isChecked;
-//         if (potatoProfileRadio) potatoProfileRadio.disabled = !isChecked;
 
-//         // Visual feedback
-//         if (profileSelector) profileSelector.style.opacity = isChecked ? '1' : '0.5';
-//     });
-// }
+// Initialize the Others section with a message
+document.addEventListener('DOMContentLoaded', () => {
+    if (otherModsContainer) {
+        otherModsContainer.innerHTML = '<p class="info-message">Select a Minecraft instance folder to load available mods.</p>';
+    }
 
-// Add event listeners
-// Add event listeners
+    // Check for updates when the app starts
+    checkForUpdates();
+});
+
+// Check for updates by comparing version numbers
+async function checkForUpdates() {
+    try {
+        // We'll check for updates only if an instance is selected
+        if (!selectedInstancePath) return;
+
+        // Path to local version file
+        const localVersionPath = path.join(selectedInstancePath, 'syncerData', 'version.txt');
+        let currentVersion = null;
+
+        // Check if local version file exists
+        if (await fs.pathExists(localVersionPath)) {
+            currentVersion = (await fs.readFile(localVersionPath, 'utf8')).trim();
+        }
+
+        // Fetch remote version
+        const remoteVersionUrl = 'https://raw.githubusercontent.com/gisketch/ckdm-mods/refs/heads/main/syncerData/version.txt';
+        const response = await axios.get(remoteVersionUrl);
+        const remoteVersion = response.data.trim();
+
+        // If local version doesn't exist or is different from remote, show changelog
+        if (!currentVersion || currentVersion !== remoteVersion) {
+            showChangelog();
+        }
+    } catch (error) {
+        console.error('Error checking for updates:', error);
+    }
+}
+
+// Show changelog in a new window
+async function showChangelog() {
+    try {
+        // Fetch changelog content
+        const changelogUrl = 'https://raw.githubusercontent.com/gisketch/ckdm-mods/refs/heads/main/syncerData/update.md';
+        const response = await axios.get(changelogUrl);
+        const changelogContent = response.data;
+
+        // Fetch remote version for title
+        const remoteVersionUrl = 'https://raw.githubusercontent.com/gisketch/ckdm-mods/refs/heads/main/syncerData/version.txt';
+        const versionResponse = await axios.get(remoteVersionUrl);
+        const versionNumber = versionResponse.data.trim();
+
+        // Create a new window to display the changelog
+        const changelogWindow = window.open('', 'Changelog', 'width=800,height=600');
+
+        // Add content to the window
+        changelogWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8" />
+                <title>Chowkingdom v${versionNumber} - Changelog</title>
+                <style>
+                    @font-face {
+                        font-family: 'Minecraft';
+                        src: url('assets/fonts/Minecraft.ttf') format('truetype');
+                    }
+                    
+                    body {
+                        font-family: Arial, sans-serif;
+                        line-height: 1.6;
+                        margin: 0;
+                        padding: 0;
+                        background-image: url('assets/images/bg.png');
+                        background-size: cover;
+                        background-attachment: fixed;
+                        color: #f0f0f0;
+                        min-height: 100vh;
+                    }
+                    
+                    .container {
+                        max-width: 800px;
+                        margin: 20px auto;
+                        background-color: rgba(32, 32, 32, 0.9);
+                        padding: 20px;
+                        border-radius: 5px;
+                        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+                    }
+                    
+                    .header {
+                        display: flex;
+                        align-items: center;
+                        margin-bottom: 20px;
+                        border-bottom: 2px solid #ff9e36;
+                        padding-bottom: 10px;
+                    }
+                    
+                    .title h1 {
+                        color: #ff9e36;
+                        margin: 0;
+                        font-family: 'Minecraft', Arial, sans-serif;
+                    }
+                    
+                    h2 {
+                        color: #ff9e36;
+                        margin-top: 20px;
+                        font-family: 'Minecraft', Arial, sans-serif;
+                    }
+                    
+                    ul {
+                        padding-left: 20px;
+                    }
+                    
+                    li {
+                        margin-bottom: 5px;
+                    }
+                    
+                    code {
+                        background-color: #333;
+                        padding: 2px 4px;
+                        border-radius: 3px;
+                        font-family: monospace;
+                    }
+                    
+                    pre {
+                        background-color: #333;
+                        padding: 10px;
+                        border-radius: 3px;
+                        overflow-x: auto;
+                    }
+                    
+                    .close-btn {
+                        display: block;
+                        margin: 20px auto 0;
+                        padding: 10px 20px;
+                        background-color: #ff9e36;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-size: 16px;
+                        font-family: 'Minecraft', Arial, sans-serif;
+                    }
+                    
+                    .close-btn:hover {
+                        background-color: #e88f2a;
+                    }
+                    
+                    .information {
+                        margin-top: 20px;
+                        font-size: 0.9em;
+                        color: #888;
+                        text-align: center;
+                    }
+                </style>
+                <!-- Include marked.js for Markdown rendering -->
+                <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="title">
+                            <h1>Chowkingdom v${versionNumber}</h1>
+                            <p>Changelog</p>
+                        </div>
+                    </div>
+                    <div id="changelog-content"></div>
+                    <button class="close-btn" onclick="window.close()">Close</button>
+                    <div class="information">
+                        <p>Developed by @gisketch</p>
+                    </div>
+                </div>
+                <script>
+                    // Render markdown content
+                    document.getElementById('changelog-content').innerHTML = marked.parse(\`${changelogContent.replace(/`/g, '\\`')}\`);
+                </script>
+            </body>
+            </html>
+        `);
+
+        // Close the document to finish writing
+        changelogWindow.document.close();
+    } catch (error) {
+        console.error('Error showing changelog:', error);
+    }
+}
+
 if (browseBtn) {
     browseBtn.addEventListener('click', async () => {
         const folderData = await ipcRenderer.invoke('select-folder');
@@ -86,6 +260,9 @@ if (browseBtn) {
 
                 // Load other mods data
                 await loadOtherModsData();
+
+                // Check for updates after selecting a valid instance
+                await checkForUpdates();
             } else {
                 if (statusMessage) statusMessage.textContent = 'Selected folder does not appear to be a valid Minecraft instance.';
                 if (syncBtn) syncBtn.disabled = true;
@@ -284,18 +461,18 @@ async function syncModpack(syncConfigs, syncKeybinds, shaderSetting, disableClie
         // Step 2: Get paths before sync for comparison
         const beforeFiles = await getAllModFiles();
 
-        // Step 3: Sync all tracked folders and files
-        setProgress(30, 'Syncing from repository...');
-        await syncFromRepository();
+        // // Step 3: Sync all tracked folders and files
+        // setProgress(30, 'Syncing from repository...');
+        // await syncFromRepository();
 
         // Step 4: Restore keybinds immediately after sync if not syncing keybinds
         if (!syncKeybinds) {
             await restoreKeybinds();
         }
 
-        // Step 5: Download and install large mod files from pastebin
-        setProgress(60, 'Downloading large mod files...');
-        await downloadLargeMods();
+        // // Step 5: Download and install large mod files from pastebin
+        // setProgress(60, 'Downloading large mod files...');
+        // await downloadLargeMods();
 
         // Step 6: Get paths after sync for comparison
         const afterFiles = await getAllModFiles();
